@@ -1,0 +1,138 @@
+#include <DHT.h>
+#include <TimeLib.h>
+
+/*
+   Mido variable Humedad y Temperatura cada 4 minutos (2400 segundos)
+   If temperatura mayor a 25 grados acciono ventilador.
+   If Humedad mayor a 55% Encender deshumudificador
+*/
+
+// Variables Sensor Humedad DHT11
+#define SENSOR_HUM_TEMP_PIN 4
+#define DHTTYPE DHT11   
+const float TempReferencia = 25;
+const float HumReferencia = 60;
+
+// Variables de Relays 
+int PIN_RELAY_I = 10;
+int PIN_RELAY_II = 11;
+DHT dht(SENSOR_HUM_TEMP_PIN, DHTTYPE);
+volatile byte relayState_I = HIGH;
+volatile byte relayState_II = HIGH;
+
+//Variables de Timer
+long delayRebote = 10000;
+long timerDelayRebote = 0;
+
+void setup() {
+  // put your setup code here, to run once:
+  // Seteo el tiempo. Importante hacer esto en instalacion.
+  //setTime(11, 51, 0, 13, 7, 2018);
+  
+  //L Led off siempre. 
+  pinMode(13, OUTPUT);
+
+  //Lectura Temp y Hum
+  dht .begin();
+  
+  //Esta escritura de HIGH, evita saltos del Relay en cada reboot.
+  digitalWrite(PIN_RELAY_I, HIGH);
+  digitalWrite(PIN_RELAY_II, HIGH);
+  pinMode(PIN_RELAY_I, OUTPUT);
+  pinMode(PIN_RELAY_II, OUTPUT);
+
+  // Comunicacion Serial para Debugging
+  Serial.begin(9600);
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  // LEO VALORES HUMEDAD Y TEMPERATURA
+  float humedad = dht.readHumidity();
+  float temperatura = dht.readTemperature(); 
+ 
+  // IMPRIMO EN MONITOR VALORES HUMEDAD y TEMPERATURA
+  Serial.print(humedad,1);
+  Serial.print(",\t");
+  Serial.println(temperatura,1);
+  Serial.print(relayState_I);
+  Serial.print(",\t");
+  Serial.println(relayState_II);
+
+  testRelays();
+
+  if (millis()-timerDelayRebote > delayRebote) {
+    if (temperatura > TempReferencia) {
+        EncendidoIntractorVentilador();
+      } else {
+        ApagadoIntractorVentilador();
+        }
+
+    if (humedad > HumReferencia){
+        EncendidoDeshumidificador();
+      } else {
+        ApagadoDeshumudificador();
+        }   
+  
+  }
+  
+// Delay de 3 segundos
+  delay(3000);
+}
+
+void EncendidoIntractorVentilador(){
+  //Enciendo Pin de Relay I. 
+  //El PIN se enciende enviando LOW.
+  if (relayState_I == HIGH) {
+    digitalWrite(PIN_RELAY_I, LOW);
+      relayState_I = LOW;
+  }
+    timerDelayRebote = millis();
+  }
+  
+void ApagadoIntractorVentilador(){
+  //Bajo Pin de Relay I
+  if (relayState_I == LOW) {
+    digitalWrite(PIN_RELAY_I, HIGH);
+    relayState_I = HIGH;
+  }
+    timerDelayRebote = millis();
+  } 
+  
+
+//FUNCIONES RELAY II DESHUMIDIFICADOR
+void EncendidoDeshumidificador(){
+  //Subo Pin Relay II
+  if (relayState_II == HIGH) {
+    digitalWrite(PIN_RELAY_II, LOW);
+    relayState_II = LOW;
+  }
+    timerDelayRebote = millis();
+}  
+
+void ApagadoDeshumudificador(){
+  //Bajo Pin Relay II
+  if (relayState_II == LOW) {
+   digitalWrite(PIN_RELAY_II, HIGH);
+   relayState_II = HIGH; 
+  }
+  timerDelayRebote = millis();
+}
+
+//TEST FUNCTIONS
+
+void testRelays(){
+  //Si recibo un 1 en el Serial, prendo el Relay 1
+  if (Serial.available()){
+    char ch = Serial.read();
+      if (ch == '1'){
+          Serial.println("Test SUBIDA Relay I");
+          digitalWrite(PIN_RELAY_I, LOW);
+      } else if (ch == '2') {
+                Serial.println("Test SUBIDA Relay II");
+                digitalWrite(PIN_RELAY_II, LOW);
+            }
+  }
+}//Test Relay
